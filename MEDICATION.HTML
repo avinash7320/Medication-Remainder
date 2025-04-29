@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Medicine Reminder Bot</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: #e8f0fe;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+    }
+    header {
+      background: #1a73e8;
+      color: white;
+      padding: 20px;
+      text-align: center;
+      font-size: 2rem;
+    }
+    #chat-container {
+      flex: 1;
+      padding: 20px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+    }
+    .message {
+      margin: 10px 0;
+      padding: 10px 15px;
+      border-radius: 15px;
+      max-width: 70%;
+      word-wrap: break-word;
+      font-size: 1.1rem;
+    }
+    .user {
+      background: #c2dbff;
+      align-self: flex-end;
+      text-align: right;
+      margin-left: auto;
+    }
+    .bot {
+      background: #ffffff;
+      align-self: flex-start;
+      text-align: left;
+      margin-right: auto;
+      border: 1px solid #ccc;
+    }
+    #input-area {
+      display: flex;
+      padding: 15px;
+      background: #f1f3f4;
+      border-top: 1px solid #ccc;
+    }
+    #user-input {
+      flex: 1;
+      padding: 10px;
+      font-size: 1.1rem;
+      border-radius: 10px;
+      border: 1px solid #ccc;
+    }
+    #send-btn, #mic-btn {
+      padding: 10px 20px;
+      margin-left: 10px;
+      background: #1a73e8;
+      color: white;
+      font-size: 1.1rem;
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+    }
+    #reminder-form {
+      background: #f9f9f9;
+      padding: 20px;
+      margin: 10px;
+      border-radius: 15px;
+      border: 1px solid #ccc;
+    }
+    #reminder-form input, #reminder-form button {
+      margin: 5px 0;
+      padding: 8px;
+      width: 100%;
+      font-size: 1rem;
+      border-radius: 8px;
+      border: 1px solid #ccc;
+    }
+    #reminder-form button {
+      background: #1a73e8;
+      color: white;
+      border: none;
+      margin-top: 10px;
+    }
+    #typing-indicator {
+      font-style: italic;
+      color: gray;
+      margin: 10px;
+    }
+  </style>
+</head>
+<body>
+
+<header>💊 Medicine Reminder Bot</header>
+
+<div id="reminder-form">
+  <h3>Set a Medicine Reminder</h3>
+  <input type="text" id="medicine-name" placeholder="Enter Medicine Name" required>
+  <input type="datetime-local" id="reminder-time" required>
+  <button onclick="setReminder()">Set Reminder</button>
+</div>
+
+<div id="chat-container"></div>
+<div id="typing-indicator" style="display:none;">Bot is typing...</div>
+
+<div id="input-area">
+  <input type="text" id="user-input" placeholder="Ask about any medicine..." />
+  <button id="mic-btn" onclick="startListening()">🎤</button>
+  <button id="send-btn" onclick="sendMessage()">Send</button>
+</div>
+
+<script>
+  const chatContainer = document.getElementById('chat-container');
+  const userInput = document.getElementById('user-input');
+  const typingIndicator = document.getElementById('typing-indicator');
+
+  const apiKey = 'AIzaSyD5b15axv8x05B7-xz6HcMk0DFHc4oIH7o'; 
+  const geminiEndpoint = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=' + apiKey;
+
+  function appendMessage(sender, text) {
+    const messageDiv = document.createElement('div');
+    messageDiv.classList.add('message', sender);
+    messageDiv.innerHTML = text;
+    chatContainer.appendChild(messageDiv);
+    chatContainer.scrollTop = chatContainer.scrollHeight;
+  }
+
+  async function sendMessage() {
+    const message = userInput.value.trim();
+    if (message === '') return;
+
+    appendMessage('user', message);
+    userInput.value = '';
+
+    typingIndicator.style.display = 'block';
+
+    let prompt = '';
+
+    if (message.toLowerCase().includes('hello') || message.toLowerCase().includes('hi') || message.length <= 3) {
+      prompt = "Respond in a friendly and short way: 'Hello! How can I assist you regarding medicines today?'.";
+    } else {
+      prompt = `Give short and useful information about the medicine '${message}' like its use, precautions, and side effects in maximum 5-6 lines.`;
+    }
+
+    const response = await fetch(geminiEndpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }]
+      })
+    });
+
+    const data = await response.json();
+    typingIndicator.style.display = 'none';
+
+    const botMessage = data.candidates?.[0]?.content?.parts?.[0]?.text || "Sorry, I couldn't find information.";
+    appendMessage('bot', botMessage.replace(/\n/g, '<br>'));
+  }
+
+  function setReminder() {
+    const medName = document.getElementById('medicine-name').value.trim();
+    const reminderTime = document.getElementById('reminder-time').value;
+
+    if (medName === '' || reminderTime === '') {
+      alert('Please enter both medicine name and time.');
+      return;
+    }
+
+    const time = new Date(reminderTime).getTime();
+    const now = new Date().getTime();
+    const delay = time - now;
+
+    if (delay <= 0) {
+      alert('Please select a future time.');
+      return;
+    }
+
+    setTimeout(() => {
+      alert(`💊 Reminder: It's time to take your medicine - ${medName}!`);
+      appendMessage('bot', `⏰ Reminder: It's time to take your medicine - <b>${medName}</b>!`);
+    }, delay);
+
+    appendMessage('bot', `✅ Reminder set for <b>${medName}</b> at ${new Date(reminderTime).toLocaleString()}`);
+    
+    document.getElementById('medicine-name').value = '';
+    document.getElementById('reminder-time').value = '';
+  }
+
+  function startListening() {
+    if (!('webkitSpeechRecognition' in window)) {
+      alert('Voice recognition not supported in this browser.');
+      return;
+    }
+    const recognition = new webkitSpeechRecognition();
+    recognition.lang = 'en-US';
+    recognition.start();
+
+    recognition.onresult = function(event) {
+      const transcript = event.results[0][0].transcript;
+      userInput.value = transcript;
+    };
+  }
+</script>
+
+</body>
+</html>
